@@ -21,7 +21,7 @@
 
 options:
     # 関数呼び出しをいちいち書くのが面倒なので options で定義
-    # on inventory click 関数の中で {@slot_letter} はページデザインで設定した対応する文字となる。
+    # on inventory click イベントの中で {@slot_letter} はページデザインで設定した対応する文字となる。
     slot_letter: kurimenu_slot_letter(script, player, index of event-slot)
 
 
