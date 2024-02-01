@@ -1,0 +1,166 @@
+# ==================================================================
+# ___  __                  ___ ___   ___
+# | | / /                  |_| |  \ /  |
+# | |/ /  ___   ___ __ ___ ___ | \ V / |   ___   __ ____   ___   ___
+# |   <   | |   | | | ' _| | | | |\_/| |  / _ \  | ' _  \  | |   | |
+# | |\ \  |  \_/  | |  /   | | | |   | | |  ___| |  / \  | |  \_/  |
+# |_| \_\  \____/_| |_|    |_| |_|   | |  \___/  |_|   |_|  \____/_|
+#
+# ==================================================================
+#
+# Author: Take-John
+# SPDX-License-Identifier: GPL-3.0
+
+
+# このファイルは GUI の動作に用いる関数群を提供する。
+
+
+# ====== [コンソールメッセージ関連] ======
+
+variables:
+    {kurimenu.prefix} = "[&bKuriMenu&r] "
+
+
+# コンソールにメッセージを表示する。
+function kurimenu_info(message: string):
+    send "%{kurimenu.prefix}%%{_message}%" to console
+
+
+# コンソールに警告を表示する。
+function kurimenu_warning(message: string):
+    send "%{kurimenu.prefix}%&c[!] %{_message}%" to console
+
+
+# ====== [ページ設定関連] ======
+
+
+# ページ設定を開始する。
+function kurimenu_start_setting(script: string):
+    set {_script} to kurimenu_file_normalize({_script})
+    delete {kurimenu.titles::%{_script}%}
+    delete {kurimenu.rows::%{_script}%::*}
+    delete {kurimenu.items::%{_script}%::*}
+
+
+# ページのタイトルを設定する。
+function kurimenu_title(script: string, title: string):
+    set {_script} to kurimenu_file_normalize({_script})
+    set {kurimenu.titles::%{_script}%} to {_title}
+
+
+# ページの配置デザインを設定する。
+function kurimenu_row(script: string, row: string):
+    set {_script} to kurimenu_file_normalize({_script})
+    add {_row} to {kurimenu.rows::%{_script}%::*}
+
+
+# 文字に対応したアイテムを設定する。
+function kurimenu_item(script: string, letter: string, item: item):
+    set {_script} to kurimenu_file_normalize({_script})
+    set {kurimenu.items::%{_script}%::%{_letter}%} to {_item}
+
+
+# ページ設定を検証する。
+function kurimenu_end_setting(script: string):
+    set {_script} to kurimenu_file_normalize({_script})
+    if {kurimenu.titles::%{_script}%} is not set:
+        add "タイトルが設定されていません" to {_errors::*}
+    set {_row_count} to size of {kurimenu.rows::%{_script}%::*}
+    if {_row_count} is not between 1 and 6:
+        add "GUI 行数は 1 以上 6 以下である必要がありますが、 %{_row_count}% です" to {_errors::*}
+    loop {kurimenu.rows::%{_script}%::*}:
+        set {_column_count} to length of loop-value
+        if {_column_count} is not 9:
+            add "GUI 列数は 9 である必要がありますが、%loop-index% 行目において %{_column_count}% です" to {_errors::*}
+        loop integers between 1 and {_column_count}:
+            set {_letter} to character at loop-value-2 in loop-value-1
+            if {kurimenu.items::%{_script}%::%{_letter}%} is not set:
+                if {_error_letters::*} does not contain {_letter}:
+                    add "%loop-index-1% 行 %loop-value-2% 列目における文字 '%{_letter}%' に対応するアイテムが設定されていません" to {_errors::*}
+                    add {_letter} to {_error_letters::*}
+    if {_errors::*} is set:
+        kurimenu_warning("%{_script}% のページ設定においてエラーが %size of {_errors::*}% 件あります")
+        loop {_errors::*}:
+            kurimenu_warning("  - %loop-value%")
+    else:
+        kurimenu_info("%{_script}% のページ設定を完了しました")
+
+
+# ====== [GUI 動作関連] ======
+
+
+# {kurimenu.opening::*} はグローバルなリスト変数で、初期値は <none>。
+# プレイヤーが GUI を開いてるとき、 {kurimenu.opening::%player's uuid%} はそのページの ID となり、
+# GUI を開いていないときは <none> となる。
+# 参加時とインベントリを閉じたときにこの変数を削除する。
+on join:
+    delete {kurimenu.opening::%player's uuid%}
+
+
+# {kurimenu.transitive::*} はグローバルなリスト変数で、初期値は <none>。
+# ページが切り替わるときに true となる。
+on inventory close:
+    if {kurimenu.transitive::%player's uuid%} is set:
+        delete {kurimenu.transitive::%player's uuid%}
+    else:
+        delete {kurimenu.opening::%player's uuid%}
+
+
+# GUI のインベントリがクリックされたとき、イベントをキャンセルする (優先度: 高)
+on inventory click with priority high:
+    {kurimenu.opening::%player's uuid%} is set
+    cancel event
+
+
+# プレイヤーに対してページを開く。
+# 引数 page: ページの定義ファイル名
+# 引数 p: プレイヤー
+function kurimenu_open(page: string, p: player):
+    if {kurimenu.opening::%{_p}'s uuid%} is set:
+        set {kurimenu.transitive::%{_p}'s uuid%} to true
+    set {_page} to kurimenu_file_normalize({_page})
+    set {kurimenu.opening::%{_p}'s uuid%} to {_page}
+    open kurimenu_new_page({_page}) to {_p}
+
+
+# ページに対応したインベントリを作成する。
+# 引数 page: ページの定義ファイル名
+# 返値: 新しく作成したインベントリ
+function kurimenu_new_page(page: string) :: inventory:
+    set {_page} to kurimenu_file_normalize({_page})
+    set {_title} to {kurimenu.titles::%{_page}%}
+    set {_row_count} to size of {kurimenu.rows::%{_page}%::*}
+    set {_inv} to new chest inventory with name {_title} with 6 rows
+    set {_slot} to 0
+    loop {kurimenu.rows::%{_page}%::*}:
+        loop integers between 1 and 9:
+            set {_letter} to character at loop-value-2 in loop-value-1
+            set {_item} to {kurimenu.items::%{_page}%::%{_letter}%}
+            set slot {_slot} of {_inv} to {_item}
+            add 1 to {_slot}
+    return {_inv}
+
+
+# スロット番号に対応する文字を返す。
+# 引数 page: ページの定義ファイル名
+# 引数 p: プレイヤー
+# 引数 slot: スロット番号
+# 返値: 対応する文字
+function kurimenu_slot_letter(page: string, p: player, slot: integer) :: string:
+    set {_page} to kurimenu_file_normalize({_page})
+    {kurimenu.opening::%{_p}'s uuid%} is {_page}
+    set {_row} to floor({_slot} / 9) + 1
+    set {_column} to mod({_slot}, 9) + 1
+    return character at {_column} in {kurimenu.rows::%{_page}%::%{_row}%}
+
+
+
+# ====== [その他] ======
+
+
+# スクリプトのファイル名を正規化する。
+# 引数 file: ファイル名
+# 返値: ファイル名中の '\' を '/' に置き換える。
+function kurimenu_file_normalize(file: string) :: string:
+    replace all "\" in {_file} with "/"
+    return {_file}
