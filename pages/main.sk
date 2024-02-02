@@ -73,4 +73,4 @@ on inventory click:
 
 on inventory click:
     {@slot_letter} is ">"
-    kurimenu_open("kurimenu/sub", player)
+    kurimenu_open("kurimenu/pages/sub", player)

@@ -66,4 +66,4 @@ on inventory click:
 
 on inventory click:
     {@slot_letter} is "<"
-    kurimenu_open("kurimenu/main", player)
+    kurimenu_open("kurimenu/pages/main", player)
