@@ -130,7 +130,7 @@ function kurimenu_new_page(page: string) :: inventory:
     set {_page} to kurimenu_file_normalize({_page})
     set {_title} to {kurimenu.titles::%{_page}%}
     set {_row_count} to size of {kurimenu.rows::%{_page}%::*}
-    set {_inv} to new chest inventory with name {_title} with 6 rows
+    set {_inv} to new chest inventory with name {_title} with {_row_count} rows
     set {_slot} to 0
     loop {kurimenu.rows::%{_page}%::*}:
         loop integers between 1 and 9:
